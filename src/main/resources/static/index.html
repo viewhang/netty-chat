@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>聊天室</title>
+    <script src="../libs/jquery-1.12.4/jquery-1.12.4.js"></script>
+    <script src="../libs/vue-2.6.10/vue.js"></script>
+    <script src="../libs/ant-design-vue-1.7.2/antd.js"></script>
+    <script src="../libs/ant-design-vue-1.7.2/antd-with-locales.js"></script>
+    <link rel="stylesheet" href="../../libs/ant-design-vue-1.7.2/antd.css">
+</head>
+<body>
+<div id="app">
+
+    <h3>netty 聊天室：</h3>
+    <a-row>
+        <a-col :span="12">
+            <form onsubmit="return false;">
+                <textarea id="responseText" style="width: 300px; height: 400px;"></textarea>
+                <br/>
+                <input type="text" name="message" style="width: 300px" value="测试数据"/><br/>
+                <input type="button" value="发送消息" onclick="send(this.form.message.value)"/>
+            </form>
+        </a-col>
+        <a-col :span="12">
+            <a-button type="primary" @click="bindUsers">获取最新用户</a-button>
+            <div>
+                <a-select v-model="selectUser" placeholder="请选择私聊对象" style="width: 220px">
+                    <a-select-option v-for="item in users" :key="item.username" :value="item.username">
+                        {{item.username}}
+                    </a-select-option>
+                </a-select>
+            </div>
+            <br/>
+            <a-input type="text" v-model="message" style="width: 300px"></a-input>
+            <a-button @click="sendMessage">发送私信</a-button>
+        </a-col>
+    </a-row>
+</div>
+</body>
+<script type="text/javascript">
+    var socket;
+    if (!window.WebSocket) {
+        window.WebSocket = window.MozWebSocket;
+    }
+    if (window.WebSocket) {
+        socket = new WebSocket("ws://localhost:8090/ws");
+        socket.onmessage = function (event) {
+            var ta = document.getElementById('responseText');
+            ta.value = ta.value + '\n' + event.data
+        };
+        socket.onopen = function (event) {
+            var ta = document.getElementById('responseText');
+            ta.value = "你已成功加入聊天室!";
+        };
+        socket.onclose = function (event) {
+            var ta = document.getElementById('responseText');
+            ta.value = ta.value + "连接被关闭";
+        };
+    } else {
+        alert("你的浏览器不支持 WebSocket！");
+    }
+
+    function send(message) {
+        if (!window.WebSocket) {
+            return;
+        }
+        if (socket.readyState == WebSocket.OPEN) {
+            socket.send(message);
+        } else {
+            alert("连接没有开启.");
+        }
+    }
+
+    window.onbeforeunload = function (event) {
+        event.returnValue = "刷新提醒";
+    };
+
+    var app = new Vue({
+        el: "#app",
+        data: {
+            users: [],
+            selectUser: undefined,
+            message: '私聊信息'
+        },
+        mounted: function () {
+            this.bindUsers()
+        },
+        methods: {
+            bindUsers: function () {
+                var that = this;
+                $.ajax({
+                    url: '/chat/users',
+                    type: 'GET',
+                    success: function (res) {
+                        that.users = res.data
+                    }
+                });
+            },
+            sendMessage: function () {
+                var that = this
+                if (!this.selectUser) {
+                    this.$message.error("请选择私聊对象")
+                    return
+                }
+                var data = {toUsername: this.selectUser, message: this.message};
+                $.ajax({
+                    url: '/chat/send-one',
+                    type: 'post',
+                    data: data,
+                    success: function (res) {
+                        console.log(res)
+                    }
+                });
+            },
+        }
+    });
+</script>
+</html>
